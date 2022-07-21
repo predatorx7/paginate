@@ -1,0 +1,373 @@
+/// The following code is copied from the riverpod
+/// package (v1.0.3) https://github.com/rrousselGit/riverpod.
+/// The riverpod package is licensed under the MIT license.
+///
+/// MIT License
+///
+/// Copyright (c) 2020 Remi Rousselet
+///
+/// Permission is hereby granted, free of charge, to any person obtaining a copy
+/// of this software and associated documentation files (the "Software"), to deal
+/// in the Software without restriction, including without limitation the rights
+/// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+/// copies of the Software, and to permit persons to whom the Software is
+/// furnished to do so, subject to the following conditions:
+///
+/// The above copyright notice and this permission notice shall be included in all
+/// copies or substantial portions of the Software.
+///
+/// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+/// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+/// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+/// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+/// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+/// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+/// SOFTWARE.
+
+import 'package:flutter/foundation.dart';
+
+/// Creates an [AsyncValue] in loading state.
+///
+/// Prefer always using this constructor with the `const` keyword.
+class AsyncLoading<T> implements AsyncValue<T> {
+  /// Creates an [AsyncValue] in loading state.
+  ///
+  /// Prefer always using this constructor with the `const` keyword.
+  const AsyncLoading();
+
+  @override
+  R _map<R>({
+    required R Function(AsyncData<T> data) data,
+    required R Function(AsyncError<T> error) error,
+    required R Function(AsyncLoading<T> loading) loading,
+  }) {
+    return loading(this);
+  }
+
+  @override
+  String toString() {
+    return 'AsyncLoading<$T>()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return runtimeType == other.runtimeType;
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+}
+
+/// Creates an [AsyncValue] in error state.
+///
+/// The parameter [error] cannot be `null`.
+class AsyncError<T> implements AsyncValue<T> {
+  /// Creates an [AsyncValue] in error state.
+  ///
+  /// The parameter [error] cannot be `null`.
+  const AsyncError(this.error, {this.stackTrace});
+
+  /// The error.
+  final Object error;
+
+  /// The stacktrace of [error].
+  final StackTrace? stackTrace;
+
+  @override
+  R _map<R>({
+    required R Function(AsyncData<T> data) data,
+    required R Function(AsyncError<T> error) error,
+    required R Function(AsyncLoading<T> loading) loading,
+  }) {
+    return error(this);
+  }
+
+  @override
+  String toString() {
+    return 'AsyncError<$T>(error: $error, stackTrace: $stackTrace)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return runtimeType == other.runtimeType &&
+        other is AsyncError<T> &&
+        other.error == error &&
+        other.stackTrace == stackTrace;
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, error, stackTrace);
+}
+
+/// Creates an [AsyncValue] with a data.
+///
+/// The data can be `null`.
+class AsyncData<T> implements AsyncValue<T> {
+  /// Creates an [AsyncValue] with a data.
+  ///
+  /// The data can be `null`.
+  const AsyncData(this.value);
+
+  /// The value currently exposed.
+  final T value;
+
+  @override
+  R _map<R>({
+    required R Function(AsyncData<T> data) data,
+    required R Function(AsyncError<T> error) error,
+    required R Function(AsyncLoading<T> loading) loading,
+  }) {
+    return data(this);
+  }
+
+  @override
+  String toString() {
+    return 'AsyncData<$T>(value: $value)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return runtimeType == other.runtimeType &&
+        other is AsyncData<T> &&
+        other.value == value;
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, value);
+}
+
+@immutable
+abstract class AsyncValue<T> {
+  /// Creates an [AsyncValue] with a data.
+  ///
+  /// The data can be `null`.
+  // coverage:ignore-start
+  const factory AsyncValue.data(T value) = AsyncData<T>;
+  // coverage:ignore-end
+
+  /// Creates an [AsyncValue] in loading state.
+  ///
+  /// Prefer always using this constructor with the `const` keyword.
+  // coverage:ignore-start
+  const factory AsyncValue.loading() = AsyncLoading<T>;
+  // coverage:ignore-end
+
+  /// Creates an [AsyncValue] in error state.
+  ///
+  /// The parameter [error] cannot be `null`.
+  // coverage:ignore-start
+  const factory AsyncValue.error(Object error, {StackTrace? stackTrace}) =
+      AsyncError<T>;
+  // coverage:ignore-end
+
+  /// Transforms a [Future] that may fail into something that is safe to read.
+  ///
+  /// This is useful to avoid having to do a tedious `try/catch`. Instead of:
+  ///
+  /// ```dart
+  /// class MyNotifier extends StateNotifier<AsyncValue<MyData> {
+  ///   MyNotifier(): super(const AsyncValue.loading()) {
+  ///     _fetchData();
+  ///   }
+  ///
+  ///   Future<void> _fetchData() async {
+  ///     state = const AsyncValue.loading();
+  ///     try {
+  ///       final response = await dio.get('my_api/data');
+  ///       final data = MyData.fromJson(response);
+  ///       state = AsyncValue.data(data);
+  ///     } catch (err, stack) {
+  ///       state = AsyncValue.error(err, stack);
+  ///     }
+  ///   }
+  /// }
+  /// ```
+  ///
+  /// which is redundant as the application grows and we need more and more of this
+  /// pattern – we can use [guard] to simplify it:
+  ///
+  ///
+  /// ```dart
+  /// class MyNotifier extends StateNotifier<AsyncValue<MyData>> {
+  ///   MyNotifier(): super(const AsyncValue.loading()) {
+  ///     _fetchData();
+  ///   }
+  ///
+  ///   Future<void> _fetchData() async {
+  ///     state = const AsyncValue.loading();
+  ///     // does the try/catch for us like previously
+  ///     state = await AsyncValue.guard(() async {
+  ///       final response = await dio.get('my_api/data');
+  ///       return Data.fromJson(response);
+  ///     });
+  ///   }
+  /// }
+  /// ```
+  static Future<AsyncValue<T>> guard<T>(Future<T> Function() future) async {
+    try {
+      return AsyncValue.data(await future());
+    } catch (err, stack) {
+      return AsyncValue.error(err, stackTrace: stack);
+    }
+  }
+
+  // private mapper, so thast classes inheriting AsyncValue can specify their own
+  // `map` method with different parameters.
+  R _map<R>({
+    required R Function(AsyncData<T> data) data,
+    required R Function(AsyncError<T> error) error,
+    required R Function(AsyncLoading<T> loading) loading,
+  });
+}
+
+extension AsyncValueX<T> on AsyncValue<T> {
+  /// Upcast [AsyncValue] into an [AsyncData], or return null if the [AsyncValue]
+  /// is in loading/error state.
+  AsyncData<T>? get asData {
+    return _map(
+      data: (d) => d,
+      error: (e) => null,
+      loading: (l) => null,
+    );
+  }
+
+  /// Attempts to synchronously.
+  ///
+  /// On error, this will rethrow the error.
+  /// If loading, will return `null`.
+  /// Otherwise will return the data.
+  T? get value {
+    return _map(
+      data: (d) => d.value,
+      // ignore: only_throw_errors
+      error: (e) => throw e.error,
+      loading: (l) => null,
+    );
+  }
+
+  /// Shorthand for [when] to handle only the `data` case.
+  ///
+  /// For loading/error cases, creates a new [AsyncValue] with the corresponding
+  /// generic type while preserving the error/stacktrace.
+  AsyncValue<R> whenData<R>(R Function(T value) cb) {
+    return _map(
+      data: (d) {
+        try {
+          return AsyncValue.data(cb(d.value));
+        } catch (err, stack) {
+          return AsyncValue.error(err, stackTrace: stack);
+        }
+      },
+      error: (e) => AsyncError(e.error, stackTrace: e.stackTrace),
+      loading: (l) => AsyncLoading<R>(),
+    );
+  }
+
+  /// Switch-case over the state of the [AsyncValue] while purposefully not handling
+  /// some cases.
+  ///
+  /// If [AsyncValue] was in a case that is not handled, will return [orElse].
+  R maybeWhen<R>({
+    R Function(T data)? data,
+    R Function(Object error, StackTrace? stackTrace)? error,
+    R Function()? loading,
+    required R Function() orElse,
+  }) {
+    return _map(
+      data: (d) {
+        if (data != null) return data(d.value);
+        return orElse();
+      },
+      error: (e) {
+        if (error != null) return error(e.error, e.stackTrace);
+        return orElse();
+      },
+      loading: (l) {
+        if (loading != null) return loading();
+        return orElse();
+      },
+    );
+  }
+
+  /// Performs an action based on the state of the [AsyncValue].
+  ///
+  /// All cases are required, which allows returning a non-nullable value.
+  R when<R>({
+    required R Function(T data) data,
+    required R Function(Object error, StackTrace? stackTrace) error,
+    required R Function() loading,
+  }) {
+    return _map(
+      data: (d) => data(d.value),
+      error: (e) => error(e.error, e.stackTrace),
+      loading: (l) => loading(),
+    );
+  }
+
+  /// Perform actions conditionally based on the state of the [AsyncValue].
+  ///
+  /// Returns null if [AsyncValue] was in a state that was not handled.
+  ///
+  /// This is similar to [maybeWhen] where `orElse` returns null.
+  R? whenOrNull<R>({
+    R Function(T data)? data,
+    R Function(Object error, StackTrace? stackTrace)? error,
+    R Function()? loading,
+  }) {
+    return _map(
+      data: (d) => data?.call(d.value),
+      error: (e) => error?.call(e.error, e.stackTrace),
+      loading: (l) => loading?.call(),
+    );
+  }
+
+  /// Perform some action based on the current state of the [AsyncValue].
+  ///
+  /// This allows reading the content of an [AsyncValue] in a type-safe way,
+  /// without potentially ignoring to handle a case.
+  R map<R>({
+    required R Function(AsyncData<T> data) data,
+    required R Function(AsyncError<T> error) error,
+    required R Function(AsyncLoading<T> loading) loading,
+  }) {
+    return _map(data: data, error: error, loading: loading);
+  }
+
+  /// Perform some actions based on the state of the [AsyncValue], or call orElse
+  /// if the current state was not tested.
+  R maybeMap<R>({
+    R Function(AsyncData<T> data)? data,
+    R Function(AsyncError<T> error)? error,
+    R Function(AsyncLoading<T> loading)? loading,
+    required R Function() orElse,
+  }) {
+    return _map(
+      data: (d) {
+        if (data != null) return data(d);
+        return orElse();
+      },
+      error: (d) {
+        if (error != null) return error(d);
+        return orElse();
+      },
+      loading: (d) {
+        if (loading != null) return loading(d);
+        return orElse();
+      },
+    );
+  }
+
+  /// Perform some actions based on the state of the [AsyncValue], or return null
+  /// if the current state wasn't tested.
+  R? mapOrNull<R>({
+    R Function(AsyncData<T> data)? data,
+    R Function(AsyncError<T> error)? error,
+    R Function(AsyncLoading<T> loading)? loading,
+  }) {
+    return _map(
+      data: (d) => data?.call(d),
+      error: (d) => error?.call(d),
+      loading: (d) => loading?.call(d),
+    );
+  }
+}
