@@ -39,7 +39,7 @@ dependencies:
 Now in your Dart code, you can use:
 
 ```dart
-import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
+import 'package:paginate/paginate.dart';
 ```
 
 ## Additional information
